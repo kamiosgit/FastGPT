@@ -4,39 +4,21 @@ WORKDIR /app
 
 ARG proxy
 
-# Use a faster mirror for Alpine packages
-RUN if [ -n "$proxy" ]; then sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories; fi
+RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+RUN apk add --no-cache libc6-compat && npm install -g pnpm@9.4.0
 
-# Install necessary packages and build tools for canvas
-RUN apk add --no-cache \
-    build-base \
-    cairo-dev \
-    pango-dev \
-    glib-dev \
-    pixman-dev \
-    jpeg-dev \
-    png-dev \
-    python3 \
-    make \
-    g++ \
-    libc6-compat
-
-# Install pnpm
-RUN npm install -g pnpm@9.4.0
-
-# Copy lockfile, workspace, and npmrc
+# copy packages and one project
 COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ./packages ./packages
 COPY ./projects/app/package.json ./projects/app/package.json
 
-# Check if lockfile exists
 RUN [ -f pnpm-lock.yaml ] || (echo "Lockfile not found." && exit 1)
 
-# Install dependencies
+# if proxy exists, set proxy
 RUN if [ -z "$proxy" ]; then \
-        pnpm i --frozen-lockfile; \
+        pnpm i; \
     else \
-        pnpm i --frozen-lockfile --registry=https://registry.npmmirror.com; \
+        pnpm i --registry=https://registry.npmmirror.com; \
     fi
 
 # --------- builder -----------
@@ -46,38 +28,19 @@ WORKDIR /app
 ARG proxy
 ARG base_url
 
-# Use a faster mirror for Alpine packages
-RUN if [ -n "$proxy" ]; then sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories; fi
-
-# Install necessary packages and build tools for canvas
-RUN apk add --no-cache \
-    build-base \
-    cairo-dev \
-    pango-dev \
-    glib-dev \
-    pixman-dev \
-    jpeg-dev \
-    png-dev \
-    python3 \
-    make \
-    g++ \
-    libc6-compat
-
-# Install pnpm
-RUN npm install -g pnpm@9.4.0
-
-# Copy common files and dependencies
+# copy common node_modules and one project node_modules
 COPY package.json pnpm-workspace.yaml .npmrc tsconfig.json ./
 COPY --from=maindeps /app/node_modules ./node_modules
 COPY --from=maindeps /app/packages ./packages
 COPY ./projects/app ./projects/app
 COPY --from=maindeps /app/projects/app/node_modules ./projects/app/node_modules
 
-# Set environment variables
+RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+
+RUN apk add --no-cache libc6-compat && npm install -g pnpm@9.4.0
+
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV NEXT_PUBLIC_BASE_URL=$base_url
-
-# Build the project
 RUN pnpm --filter=app build
 
 # --------- runner -----------
@@ -87,43 +50,44 @@ WORKDIR /app
 ARG proxy
 ARG base_url
 
-# Create user and group
+# create user and use it
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Use a faster mirror for Alpine packages
-RUN if [ -n "$proxy" ]; then sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories; fi
+RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+RUN apk add --no-cache curl ca-certificates \
+  && update-ca-certificates
 
-# Install necessary packages
-RUN apk add --no-cache curl ca-certificates && update-ca-certificates
-
-# Copy built files and dependencies
+# copy running files
 COPY --from=builder /app/projects/app/public /app/projects/app/public
 COPY --from=builder /app/projects/app/next.config.js /app/projects/app/next.config.js
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/standalone /app/
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/static /app/projects/app/.next/static
+# copy server chunks
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/server/chunks /app/projects/app/.next/server/chunks
+# copy worker
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/server/worker /app/projects/app/.next/server/worker
 
-# Copy specific node modules
+# copy standload packages
 COPY --from=maindeps /app/node_modules/tiktoken ./node_modules/tiktoken
 RUN rm -rf ./node_modules/tiktoken/encoders
 COPY --from=maindeps /app/node_modules/@zilliz/milvus2-sdk-node ./node_modules/@zilliz/milvus2-sdk-node
 
-# Copy package.json
+
+# copy package.json to version file
 COPY --from=builder /app/projects/app/package.json ./package.json 
 
-# Copy data directory and set ownership
+# copy config
 COPY ./projects/app/data /app/data
 RUN chown -R nextjs:nodejs /app/data
 
-# Set environment variables
+# Add tmp directory permission control
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV NEXT_PUBLIC_BASE_URL=$base_url
 
-# Expose port and run the application
 EXPOSE 3000
 
 USER nextjs
