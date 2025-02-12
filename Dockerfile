@@ -1,27 +1,22 @@
 # Install dependencies only when needed
 FROM node:current-alpine AS deps
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-# Switch to a reliable Alpine mirror (e.g., Alibaba or Tsinghua)
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
-
-# Install required packages step by step
-RUN apk add curl
-RUN apk add ca-certificates
-RUN update-ca-certificates
 RUN apk add --no-cache libc6-compat && npm install -g pnpm
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-COPY package.json pnpm-lock.yaml ./
-COPY ./scripts/postinstall.sh ./scripts/postinstall.sh
-RUN pnpm config set registry https://registry.npmmirror.com/
-
-RUN if [ -f pnpm-lock.yaml ]; then pnpm install; else echo "pnpm-lock.yaml not found, skipping pnpm install."; fi
+COPY package.json ./
+COPY pnpm-lock.yaml* ./
+RUN \
+  [ -f pnpm-lock.yaml ] && pnpm fetch || \
+  (echo "Lockfile not found." && exit 1)
 
 # Rebuild the source code only when needed
 FROM node:current-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY pnpm-lock.yaml* ./
+COPY package.json ./
 COPY . .
 
 # Next.js collects completely anonymous telemetry data about general usage.
@@ -29,9 +24,10 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
-RUN npm install -g pnpm && pnpm run build
-# Build the project (if applicable)
-RUN if [ -f package.json ] && grep -q '"build"' package.json; then pnpm run build; else echo "No build script found, skipping build step."; fi
+RUN npm install -g pnpm
+RUN \
+  [ -f pnpm-lock.yaml ] && (pnpm --offline install && pnpm run build) || \
+  (echo "Lockfile not found." && exit 1) 
 
 # Production image, copy all the files and run next
 FROM node:current-alpine AS runner
