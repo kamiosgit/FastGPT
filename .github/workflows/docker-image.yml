@@ -39,6 +39,9 @@ jobs:
     - name: Log in to Docker Hub
       if: github.event_name == 'push'
       run: echo ${{ secrets.DOCKER_HUB_PASSWORD }} | docker login --username ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+      env:
+        DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+        DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
     - name: Push Docker image
       if: github.event_name == 'push'
