@@ -30,6 +30,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 
 RUN npm install -g pnpm && pnpm run build
+# Build the project (if applicable)
+RUN if [ -f package.json ] && grep -q '"build"' package.json; then pnpm run build; else echo "No build script found, skipping build step."; fi
 
 # Production image, copy all the files and run next
 FROM node:current-alpine AS runner
