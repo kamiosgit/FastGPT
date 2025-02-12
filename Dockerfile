@@ -4,7 +4,7 @@ WORKDIR /app
 
 ARG proxy
 
-# Use a faster mirror for Alpine packages
+# Use a faster mirror for Alpine packages docker
 RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
 
 # Install necessary packages and build tools
