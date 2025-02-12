@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # 增加超时时间到30分钟
 
     steps:
     - name: Checkout repository
@@ -28,6 +29,7 @@ jobs:
 
     - name: Build the Docker image
       run: |
+        export DOCKER_BUILDKIT=1
         docker build . --file Dockerfile --tag my-image-name:$(date +%s) \
           --build-arg proxy=https://registry.npmmirror.com \
           --build-arg base_url=${{ env.NEXT_PUBLIC_BASE_URL }}
