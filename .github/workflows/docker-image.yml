@@ -27,14 +27,19 @@ jobs:
         path: ~/.pnpm-store
         key: ${{ runner.os }}-node-${{ hashFiles('**/pnpm-lock.yaml') }}
 
+    - name: Set image tag
+      id: set-image-tag
+      run: echo "IMAGE_TAG=$(date +%s)" >> $GITHUB_ENV
+
     - name: Build the Docker image
       run: |
         export DOCKER_BUILDKIT=1
-        docker build . --file Dockerfile --tag my-image-name:$(date +%s) \
+        docker build . --file Dockerfile --tag my-image-name:${{ env.IMAGE_TAG }} \
           --build-arg proxy=https://registry.npmmirror.com \
           --build-arg base_url=${{ env.NEXT_PUBLIC_BASE_URL }}
       env:
         NEXT_PUBLIC_BASE_URL: ${{ secrets.NEXT_PUBLIC_BASE_URL }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
 
     - name: Log in to Docker Hub
       if: github.event_name == 'push'
@@ -45,4 +50,6 @@ jobs:
 
     - name: Push Docker image
       if: github.event_name == 'push'
-      run: docker push my-image-name:$(date +%s)
+      run: docker push my-image-name:${{ env.IMAGE_TAG }}
+      env:
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
