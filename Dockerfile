@@ -4,17 +4,21 @@ WORKDIR /app
 
 ARG proxy
 
-RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+# Use a faster mirror for Alpine packages
+RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
+
+# Install necessary packages and build tools
 RUN apk add --no-cache libc6-compat && npm install -g pnpm@9.4.0
 
-# copy packages and one project
+# Copy lockfile, workspace, and npmrc
 COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ./packages ./packages
 COPY ./projects/app/package.json ./projects/app/package.json
 
+# Check if lockfile exists
 RUN [ -f pnpm-lock.yaml ] || (echo "Lockfile not found." && exit 1)
 
-# if proxy exists, set proxy
+# Install dependencies
 RUN if [ -z "$proxy" ]; then \
         pnpm i; \
     else \
@@ -28,17 +32,20 @@ WORKDIR /app
 ARG proxy
 ARG base_url
 
-# copy common node_modules and one project node_modules
+# Copy common node_modules and one project node_modules
 COPY package.json pnpm-workspace.yaml .npmrc tsconfig.json ./
 COPY --from=maindeps /app/node_modules ./node_modules
 COPY --from=maindeps /app/packages ./packages
 COPY ./projects/app ./projects/app
 COPY --from=maindeps /app/projects/app/node_modules ./projects/app/node_modules
 
-RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+# Use a faster mirror for Alpine packages
+RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
 
+# Install necessary packages and build tools
 RUN apk add --no-cache libc6-compat && npm install -g pnpm@9.4.0
 
+# Set environment variables
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV NEXT_PUBLIC_BASE_URL=$base_url
 RUN pnpm --filter=app build
@@ -50,44 +57,46 @@ WORKDIR /app
 ARG proxy
 ARG base_url
 
-# create user and use it
+# Create user and group
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+# Use a faster mirror for Alpine packages
+RUN [ -z "$proxy" ] || sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories
+
+# Install necessary packages
 RUN apk add --no-cache curl ca-certificates \
   && update-ca-certificates
 
-# copy running files
+# Copy running files
 COPY --from=builder /app/projects/app/public /app/projects/app/public
 COPY --from=builder /app/projects/app/next.config.js /app/projects/app/next.config.js
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/standalone /app/
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/static /app/projects/app/.next/static
-# copy server chunks
+# Copy server chunks
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/server/chunks /app/projects/app/.next/server/chunks
-# copy worker
+# Copy worker
 COPY --from=builder --chown=nextjs:nodejs /app/projects/app/.next/server/worker /app/projects/app/.next/server/worker
 
-# copy standload packages
+# Copy standload packages
 COPY --from=maindeps /app/node_modules/tiktoken ./node_modules/tiktoken
 RUN rm -rf ./node_modules/tiktoken/encoders
 COPY --from=maindeps /app/node_modules/@zilliz/milvus2-sdk-node ./node_modules/@zilliz/milvus2-sdk-node
 
-
-# copy package.json to version file
+# Copy package.json to version file
 COPY --from=builder /app/projects/app/package.json ./package.json 
 
-# copy config
+# Copy config
 COPY ./projects/app/data /app/data
 RUN chown -R nextjs:nodejs /app/data
 
-# Add tmp directory permission control
-
+# Set environment variables
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV NEXT_PUBLIC_BASE_URL=$base_url
 
+# Expose port and run the application
 EXPOSE 3000
 
 USER nextjs
