@@ -1,6 +1,13 @@
 # Install dependencies only when needed
 FROM node:current-alpine AS deps
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+# Switch to a reliable Alpine mirror (e.g., Alibaba or Tsinghua)
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
+# Install required packages step by step
+RUN apk add curl
+RUN apk add ca-certificates
+RUN update-ca-certificates
 RUN apk add --no-cache libc6-compat && npm install -g pnpm
 WORKDIR /app
 
