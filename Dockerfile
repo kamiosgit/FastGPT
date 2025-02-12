@@ -1,4 +1,4 @@
-# --------- install dependences -----------
+# --------- install dependence -----------
 FROM node:20.14.0-alpine AS maindeps
 WORKDIR /app
 
