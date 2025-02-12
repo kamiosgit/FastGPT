@@ -7,9 +7,8 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm config set registry https://registry.npmmirror.com/
-RUN \
-  [ -f pnpm-lock.yaml ] && pnpm install || \
-  (echo "Lockfile not found." && exit 1)
+
+RUN if [ -f pnpm-lock.yaml ]; then pnpm install; else echo "pnpm-lock.yaml not found, skipping pnpm install."; fi
 
 # Rebuild the source code only when needed
 FROM node:current-alpine AS builder
